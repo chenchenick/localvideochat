@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Webcam Feed and Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="video-feed">
+            <img src="{{ url_for('video.video_feed') }}" width="640" height="480" id="video-feed">
+        </div>
+        <div class="chatbot">
+            <div class="chat-box" id="chat-box"></div>
+            <input type="text" class="user-input" id="user-input" placeholder="Type your message...">
+            <button class="send-button" id="send-button">Send</button>
+        </div>
+    </div>
+    <script>
+        document.getElementById("send-button").addEventListener("click", function() {
+            const userInput = document.getElementById("user-input").value;
+            if (userInput.trim() !== "") {
+                appendMessage("You: " + userInput);
+                fetch("/chat", {
+                    method: "POST",
+                    body: new URLSearchParams({user_message: userInput}),
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    appendMessage("Chatbot: " + data.bot_response);
+                });
+                document.getElementById("user-input").value = "";
+            }
+        });
+
+        function appendMessage(message) {
+            const chatBox = document.getElementById("chat-box");
+            const messageElement = document.createElement("div");
+            messageElement.textContent = message;
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function captureImage() {
+            const video = document.getElementById("video-feed");
+            console.log("Video element properties:", video.width, video.height);
+
+            if (!video || video.width === 0 || video.height === 0) {
+                console.error("Video element is not ready or has invalid dimensions.");
+                return;
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = video.width;
+            canvas.height = video.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = canvas.toDataURL("image/jpeg").split(",")[1];
+
+            if (imageData) {
+                console.log("Image data captured:", imageData);
+                fetch("/capture", {
+                    method: "POST",
+                    body: new URLSearchParams({image_data: imageData}),
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        console.log("Image captured and saved as: " + data.filename);
+                    } else {
+                        console.error("Failed to capture image.");
+                    }
+                });
+            } else {
+                console.error("Failed to capture image data.");
+            }
+        }
+
+        // Ensure the video element is fully loaded before calling captureImage
+        const videoFeed = document.getElementById("video-feed");
+        videoFeed.addEventListener("load", function() {
+            setInterval(captureImage, 30000); // Capture an image every 30 seconds
+        });
+
+        // If the video feed is already loaded, call captureImage immediately
+        if (videoFeed.complete && videoFeed.naturalHeight !== 0) {
+            setInterval(captureImage, 30000); // Capture an image every 30 seconds
+        }
+    </script>
+</body>
+</html>
